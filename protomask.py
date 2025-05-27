@@ -1,15 +1,22 @@
 import time
 from pimoroni_i2c import PimoroniI2C
 from breakout_matrix11x7 import BreakoutMatrix11x7
-from largeanim import anim_happy_blink
+
+from anim_square import anim_square
+from anim_cross import anim_cross
+from anim_heart import anim_heart
+from anim_question import anim_question
+from anim_exclamation import anim_exclamation
+from anim_chevron_side import anim_chevron_side, anim_chevron_side_blink, anim_chevron_side_to_up
+from anim_chevron_up import anim_chevron_up, anim_chevron_up_blink, anim_chevron_up_to_side
 
 PINS_BREAKOUT_GARDEN = {"sda": 4, "scl": 5}
 PINS_PICO_EXPLORER = {"sda": 20, "scl": 21}
 
 i2c = PimoroniI2C(**PINS_PICO_EXPLORER)
 
-MATRIX1 = BreakoutMatrix11x7(i2c, address=0x77)
-MATRIX2 = BreakoutMatrix11x7(i2c, address=0x75)
+MATRIX1 = BreakoutMatrix11x7(i2c, address=0x75)
+MATRIX2 = BreakoutMatrix11x7(i2c, address=0x77)
 
 print('running')
 
@@ -17,9 +24,9 @@ x = 0
 y = 0
 light = True
 
-ANIM_DELAY = 0.03
+ANIM_DELAY = 0.4
 FRAMESIZE = (11, 14)
-BRIGHTNESS = 64
+BRIGHTNESS = 60
 
 def render_frame(frame: list, framesize: tuple, matrix1, matrix2, brightness: int):
     
@@ -51,7 +58,7 @@ def render_frame(frame: list, framesize: tuple, matrix1, matrix2, brightness: in
 def play_anim(anim: list, framesize: tuple, matrix1, matrix2, brightness: int, delay: float):
 
     for frame_index in range(0, len(anim)):
-        print(f'frame index: {frame_index}')
+        #print(f'frame index: {frame_index}')
         frame = anim[frame_index]
         render_frame(frame=frame, framesize=framesize, matrix1=matrix1, matrix2=matrix2, brightness=brightness)
 
@@ -60,6 +67,38 @@ def play_anim(anim: list, framesize: tuple, matrix1, matrix2, brightness: int, d
             
         time.sleep(delay)
 
-play_anim(anim=anim_happy_blink, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=ANIM_DELAY)
+DELAY_BETWEEN_ANIMS = 1.5
+while True:
+    play_anim(anim=anim_chevron_up, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=1)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    play_anim(anim=anim_chevron_up_blink, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.1)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    play_anim(anim=anim_chevron_up_to_side, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    play_anim(anim=anim_chevron_side_blink, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.1)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    play_anim(anim=anim_chevron_side_to_up, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    play_anim(anim=anim_exclamation, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    play_anim(anim=anim_question, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    play_anim(anim=anim_heart, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    for i in range(5):
+        play_anim(anim=anim_cross, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.4)
+    time.sleep(DELAY_BETWEEN_ANIMS)
+    while True:
+        play_anim(anim=anim_square, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.1)
+    
+
+
+
+
+
+
+
+
+
 
 
