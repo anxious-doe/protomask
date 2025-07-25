@@ -1,4 +1,5 @@
 import time
+import sys
 from pimoroni_i2c import PimoroniI2C
 from breakout_matrix11x7 import BreakoutMatrix11x7
 
@@ -10,32 +11,51 @@ from anim_exclamation import anim_exclamation
 from anim_chevron_side import anim_chevron_side, anim_chevron_side_blink, anim_chevron_side_to_up
 from anim_chevron_up import anim_chevron_up, anim_chevron_up_blink, anim_chevron_up_to_side
 
-PINS_BREAKOUT_GARDEN = {"sda": 4, "scl": 5}
-PINS_PICO_EXPLORER = {"sda": 20, "scl": 21}
+I2C = PimoroniI2C(sda=20, scl=21)
 
-i2c = PimoroniI2C(**PINS_PICO_EXPLORER)
+def get_mux_matrix(i2c, channel, address):
+    """
+    Create a matrix object behind the multiplexer.
+    
+    I don't think that the actual objects matter, so we could possibly only have
+    matrix 1 and matrix 2, being 0x77 & 0x75, switching target based on multiplexer
+    channel, but this works so I'll keep it for now.
+    """
+    select_mux_channel(i2c, channel)
+    return BreakoutMatrix11x7(i2c, address=address)
 
-MATRIX1 = BreakoutMatrix11x7(i2c, address=0x75)
-MATRIX2 = BreakoutMatrix11x7(i2c, address=0x77)
 
-print('running')
-
-x = 0
-y = 0
-light = True
-
-ANIM_DELAY = 0.4
-FRAMESIZE = (11, 14)
-BRIGHTNESS = 60
-
-def render_frame(frame: list, framesize: tuple, matrix1, matrix2, brightness: int):
+def select_mux_channel(i2c, channel):
+    """
+    Select which channel to output the signals on.
+    
+    ie if we set channel 0, then all devices wired to multiplexer connections
+    sc0, sd0 will see the signal.
+    
+    So we need to set this before sending commands to each pair of matrixes.
+    """
+    if 0 <= channel <= 3:
+        i2c.writeto(0x70, bytes([1 << channel]))
+        
+def flip_2d_list(list_2d: list, flip_x: bool = False, flip_y: bool = False):
+    flipped_list = list(list_2d)
+    if flip_y:
+        flipped_list = flipped_list[::-1]
+    if flip_x:
+        new_flipped_rows = []
+        for row in flipped_list:
+            new_flipped_rows.append(row[::-1])
+        flipped_list = new_flipped_rows
+    return flipped_list
+        
+def render_frame(frame: list, invert_y: bool, framesize: tuple, matrix1, matrix2, brightness: int):
     
     #print(f"frame len: {len(frame)}")
     rows = framesize[0]
     cols = framesize[1]
     single_display_cols = int(cols/2)
-    #print(f"rows: {rows}")
-    #print(f"cols: {cols}")
+    
+    frame = flip_2d_list(list_2d=frame, flip_x=False, flip_y=invert_y)
     
     for row in range(0, rows):
         #print(f"row {row}")
@@ -55,50 +75,72 @@ def render_frame(frame: list, framesize: tuple, matrix1, matrix2, brightness: in
     matrix1.update()
     matrix2.update()
 
-def play_anim(anim: list, framesize: tuple, matrix1, matrix2, brightness: int, delay: float):
-
+def play_anim(i2c, eye_positions: dict, eye: str, anim: list, framesize: tuple, matrices: tuple, brightness: int, delay: float):
+        
     for frame_index in range(0, len(anim)):
-        #print(f'frame index: {frame_index}')
-        frame = anim[frame_index]
-        render_frame(frame=frame, framesize=framesize, matrix1=matrix1, matrix2=matrix2, brightness=brightness)
+        #print(f"frame {frame_index} / {len(anim)}")
 
-        matrix2.update()
-        matrix1.update()
+        frame = anim[frame_index]
+
+        if eye == "left" or eye == "both":
+            select_mux_channel(i2c, eye_positions["left_channel"])
+            matrix1 = matrices[eye_positions["left_left_pos"]]
+            matrix2 = matrices[eye_positions["left_right_pos"]]
+            invert_y = eye_positions["left_invert_y"]
+            render_frame(frame=frame, invert_y=invert_y, framesize=framesize, matrix1=matrix1, matrix2=matrix2, brightness=brightness)
+            matrix1.update()
+            matrix2.update()
             
+        if eye == "right" or eye == "both":
+            select_mux_channel(i2c, eye_positions["right_channel"])
+            matrix1 = matrices[eye_positions["right_left_pos"]]
+            matrix2 = matrices[eye_positions["right_right_pos"]]
+            invert_y = eye_positions["right_invert_y"]
+            render_frame(frame=frame, invert_y=invert_y, framesize=framesize, matrix1=matrix1, matrix2=matrix2, brightness=brightness)
+            matrix1.update()
+            matrix2.update()
+        
         time.sleep(delay)
 
-DELAY_BETWEEN_ANIMS = 1.5
+print("setting up matrices")
+MATRIX0R = get_mux_matrix(I2C, 0, 0x75)
+MATRIX0L = get_mux_matrix(I2C, 0, 0x77)
+
+MATRIX1R = get_mux_matrix(I2C, 1, 0x75)
+MATRIX1L = get_mux_matrix(I2C, 1, 0x77)
+
+print("initialising variables")
+
+MATRICES = [MATRIX0L, MATRIX0R, MATRIX1L, MATRIX1R]
+
+ANIM_DELAY = 0.4
+FRAMESIZE = (11, 14)
+BRIGHTNESS = 60
+
+EYE_POSITIONS = {
+    "left_channel": 1,
+    "right_channel": 0,
+    "left_invert_y": False,
+    "right_invert_y": True,
+    "left_left_pos": 0,
+    "left_right_pos": 1,
+    "right_left_pos": 2,
+    "right_right_pos": 3,
+}
+
+print("running")
+
 while True:
-    play_anim(anim=anim_chevron_up, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=1)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    play_anim(anim=anim_chevron_up_blink, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.1)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    play_anim(anim=anim_chevron_up_to_side, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    play_anim(anim=anim_chevron_side_blink, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.1)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    play_anim(anim=anim_chevron_side_to_up, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    play_anim(anim=anim_exclamation, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    play_anim(anim=anim_question, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    play_anim(anim=anim_heart, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.2)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    for i in range(5):
-        play_anim(anim=anim_cross, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.4)
-    time.sleep(DELAY_BETWEEN_ANIMS)
-    while True:
-        play_anim(anim=anim_square, framesize=FRAMESIZE, matrix1=MATRIX1, matrix2=MATRIX2, brightness=BRIGHTNESS, delay=0.1)
+    inpt = input(">>>")
+    play_anim(i2c=I2C, eye_positions=EYE_POSITIONS, eye="right", anim=anim_chevron_up, framesize=FRAMESIZE, matrices=MATRICES, brightness=100, delay=0.08)
     
-
-
-
-
-
-
-
-
-
-
-
+    if inpt == "blink":
+        print("blinking")
+        play_anim(i2c=I2C, eye_positions=EYE_POSITIONS, eye="both", anim=anim_chevron_up_blink, framesize=FRAMESIZE, matrices=MATRICES, brightness=100, delay=0.08)
+    elif inpt == "wink":
+        play_anim(i2c=I2C, eye_positions=EYE_POSITIONS, eye="left", anim=anim_chevron_up_blink, framesize=FRAMESIZE, matrices=MATRICES, brightness=100, delay=0.08)
+    elif inpt == "quit":
+        print("quitting")
+        sys.exit()
+    else:
+        print(f"not a command: {inpt}")
